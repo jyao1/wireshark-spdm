@@ -81,8 +81,18 @@ static int hf_spdm_ALG_ExtHashCount = -1;
 static int hf_spdm_ALG_ExtAsym = -1;
 static int hf_spdm_ALG_ExtHash = -1;
 static int hf_spdm_ALG_ReqAlgStruct = -1;
+static int hf_spdm_ALG_MeasurementSpecificationSel = -1;
+static int hf_spdm_ALG_MeasurementHashAlgo = -1;
+static int hf_spdm_ALG_BaseAsymSel = -1;
+static int hf_spdm_ALG_BaseHashSel = -1;
+static int hf_spdm_ALG_ExtAsymSelCount = -1;
+static int hf_spdm_ALG_ExtHashSelCount = -1;
+static int hf_spdm_ALG_ExtAsymSel = -1;
+static int hf_spdm_ALG_ExtHashSel = -1;
+static int hf_spdm_ALG_RespAlgStruct = -1;
+
 //  GET_DIGESTS request and DIGESTS response messages
-static int hf_spdm_digests_digest;
+static int hf_spdm_digests_digest = -1;
 
 static struct {
     gint spdm;
@@ -187,6 +197,90 @@ dissect_capabilities_response_message(tvbuff_t *tvb, packet_info *pinfo _U_, pro
 }
 
 static void
+dissect_negotiate_algorithms_request_message(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree _U_, guint32 offset)
+{   
+    proto_tree* subtree;
+
+    subtree = proto_tree_add_subtree(tree, tvb, offset, 0, spdm_ett.spdm, 0, "SPDM NEGOTIATE ALGORITHMS REQUEST MESSAGE");
+
+    proto_tree_add_item(subtree, hf_spdm_SPDMVersion, tvb, offset, 1, ENC_BIG_ENDIAN);
+    offset += 1;
+    proto_tree_add_item(subtree, hf_spdm_RequestResponseCode, tvb, offset, 1, ENC_BIG_ENDIAN);
+    offset += 1;
+    proto_tree_add_item(subtree, hf_spdm_Param1, tvb, offset, 1, ENC_BIG_ENDIAN);
+    offset += 1;
+    proto_tree_add_item(subtree, hf_spdm_Param2, tvb, offset, 1, ENC_BIG_ENDIAN);
+    offset += 1;
+    proto_tree_add_item(subtree, hf_spdm_ALG_Length, tvb, offset, 1, ENC_BIG_ENDIAN);
+    offset += 2;
+    proto_tree_add_item(subtree, hf_spdm_ALG_MeasurementSpecification, tvb, offset, 2, ENC_BIG_ENDIAN);
+    offset += 2;
+    proto_tree_add_item(subtree, hf_spdm_ALG_BaseAsymAlgo, tvb, offset, 4, ENC_BIG_ENDIAN);
+    offset += 4;
+    proto_tree_add_item(subtree, hf_spdm_ALG_BaseHashAlgo, tvb, offset, 4, ENC_BIG_ENDIAN);
+    offset += 16;
+    guint8 ExtAsymCount = tvb_get_guint8(tvb, offset);
+    proto_tree_add_item(subtree, hf_spdm_ALG_ExtAsymCount, tvb, offset, 1, ENC_BIG_ENDIAN);
+    offset += 1;
+    guint8 ExtHashCount = tvb_get_guint8(tvb, offset);
+    proto_tree_add_item(subtree, hf_spdm_ALG_ExtHashCount, tvb, offset, 1, ENC_BIG_ENDIAN);
+    offset += 3;
+    if (ExtAsymCount != 0) {
+        proto_tree_add_item(subtree, hf_spdm_ALG_ExtAsym, tvb, offset, 4 * ExtAsymCount, ENC_BIG_ENDIAN);
+        offset += 4 * ExtAsymCount;
+    }
+    if (ExtHashCount != 0) {
+        proto_tree_add_item(subtree, hf_spdm_ALG_ExtHash, tvb, offset, 4 * ExtHashCount, ENC_BIG_ENDIAN);
+        offset += 4 * ExtHashCount;
+    }
+    
+    proto_tree_add_item(subtree, hf_spdm_ALG_ReqAlgStruct, tvb, offset, 1, ENC_BIG_ENDIAN);
+}
+
+static void
+dissect_algorithms_response_message(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree _U_, guint32 offset)
+{   
+    proto_tree* subtree;
+
+    subtree = proto_tree_add_subtree(tree, tvb, offset, 0, spdm_ett.spdm, 0, "SPDM ALGORITHMS RESPONSE MESSAGE");
+
+    proto_tree_add_item(subtree, hf_spdm_SPDMVersion, tvb, offset, 1, ENC_BIG_ENDIAN);
+    offset += 1;
+    proto_tree_add_item(subtree, hf_spdm_RequestResponseCode, tvb, offset, 1, ENC_BIG_ENDIAN);
+    offset += 1;
+    proto_tree_add_item(subtree, hf_spdm_Param1, tvb, offset, 1, ENC_BIG_ENDIAN);
+    offset += 1;
+    proto_tree_add_item(subtree, hf_spdm_Param2, tvb, offset, 1, ENC_BIG_ENDIAN);
+    offset += 1;
+    proto_tree_add_item(subtree, hf_spdm_ALG_Length, tvb, offset, 1, ENC_BIG_ENDIAN);
+    offset += 2;
+    proto_tree_add_item(subtree, hf_spdm_ALG_MeasurementSpecificationSel, tvb, offset, 1, ENC_BIG_ENDIAN);
+    offset += 2;
+    proto_tree_add_item(subtree, hf_spdm_ALG_MeasurementHashAlgo, tvb, offset, 4, ENC_BIG_ENDIAN);
+    offset += 4;
+    proto_tree_add_item(subtree, hf_spdm_ALG_BaseAsymSel, tvb, offset, 4, ENC_BIG_ENDIAN);
+    offset += 4;
+    proto_tree_add_item(subtree, hf_spdm_ALG_BaseHashSel, tvb, offset, 4, ENC_BIG_ENDIAN);
+    offset += 16;
+    guint8 ExtAsymSelCount = tvb_get_guint8(tvb, offset);
+    proto_tree_add_item(subtree, hf_spdm_ALG_ExtAsymSelCount, tvb, offset, 1, ENC_BIG_ENDIAN);
+    offset += 1;
+    guint8 ExtHashSelCount = tvb_get_guint8(tvb, offset);
+    proto_tree_add_item(subtree, hf_spdm_ALG_ExtHashSelCount, tvb, offset, 1, ENC_BIG_ENDIAN);
+    offset += 3;
+    if (ExtAsymSelCount != 0) {
+        proto_tree_add_item(subtree, hf_spdm_ALG_ExtAsymSel, tvb, offset, 4 * ExtAsymSelCount, ENC_BIG_ENDIAN);
+        offset += 4 * ExtAsymSelCount;
+    }
+    if (ExtHashSelCount != 0) {
+        proto_tree_add_item(subtree, hf_spdm_ALG_ExtHashSel, tvb, offset, 4 * ExtHashSelCount, ENC_BIG_ENDIAN);
+        offset += 4 * ExtHashSelCount;
+    }
+
+    proto_tree_add_item(subtree, hf_spdm_ALG_RespAlgStruct, tvb, offset, 1, ENC_BIG_ENDIAN);
+}
+
+static void
 dissect_get_digests_request_message(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree _U_, guint32 offset)
 {   
     proto_tree* subtree;
@@ -201,6 +295,471 @@ dissect_get_digests_request_message(tvbuff_t *tvb, packet_info *pinfo _U_, proto
     offset += 1;
     proto_tree_add_item(subtree, hf_spdm_Param2, tvb, offset, 1, ENC_BIG_ENDIAN);
 }
+
+static void
+dissect_digests_response_message(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree _U_, guint32 offset)
+{   
+    proto_tree* subtree;
+
+    subtree = proto_tree_add_subtree(tree, tvb, offset, 0, spdm_ett.spdm, 0, "SPDM DIGESTS RESPONSE MESSAGE");
+
+    proto_tree_add_item(subtree, hf_spdm_SPDMVersion, tvb, offset, 1, ENC_BIG_ENDIAN);
+    offset += 1;
+    proto_tree_add_item(subtree, hf_spdm_RequestResponseCode, tvb, offset, 1, ENC_BIG_ENDIAN);
+    offset += 1;
+    proto_tree_add_item(subtree, hf_spdm_Param1, tvb, offset, 1, ENC_BIG_ENDIAN);
+    offset += 1;
+    proto_tree_add_item(subtree, hf_spdm_Param2, tvb, offset, 1, ENC_BIG_ENDIAN);
+}
+
+static void
+dissect_get_certificate_request_message(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree _U_, guint32 offset)
+{   
+    proto_tree* subtree;
+
+    subtree = proto_tree_add_subtree(tree, tvb, offset, 0, spdm_ett.spdm, 0, "SPDM GET CERTIFICATE REQUEST MESSAGE");
+
+    proto_tree_add_item(subtree, hf_spdm_SPDMVersion, tvb, offset, 1, ENC_BIG_ENDIAN);
+    offset += 1;
+    proto_tree_add_item(subtree, hf_spdm_RequestResponseCode, tvb, offset, 1, ENC_BIG_ENDIAN);
+    offset += 1;
+    proto_tree_add_item(subtree, hf_spdm_Param1, tvb, offset, 1, ENC_BIG_ENDIAN);
+    offset += 1;
+    proto_tree_add_item(subtree, hf_spdm_Param2, tvb, offset, 1, ENC_BIG_ENDIAN);
+}
+
+static void
+dissect_certificate_response_message(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree _U_, guint32 offset)
+{   
+    proto_tree* subtree;
+
+    subtree = proto_tree_add_subtree(tree, tvb, offset, 0, spdm_ett.spdm, 0, "SPDM CERTIFICATE RESPONSE MESSAGE");
+
+    proto_tree_add_item(subtree, hf_spdm_SPDMVersion, tvb, offset, 1, ENC_BIG_ENDIAN);
+    offset += 1;
+    proto_tree_add_item(subtree, hf_spdm_RequestResponseCode, tvb, offset, 1, ENC_BIG_ENDIAN);
+    offset += 1;
+    proto_tree_add_item(subtree, hf_spdm_Param1, tvb, offset, 1, ENC_BIG_ENDIAN);
+    offset += 1;
+    proto_tree_add_item(subtree, hf_spdm_Param2, tvb, offset, 1, ENC_BIG_ENDIAN);
+}
+
+static void
+dissect_get_challenge_request_message(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree _U_, guint32 offset)
+{   
+    proto_tree* subtree;
+
+    subtree = proto_tree_add_subtree(tree, tvb, offset, 0, spdm_ett.spdm, 0, "SPDM GET CHANLLENGE REQUEST MESSAGE");
+
+    proto_tree_add_item(subtree, hf_spdm_SPDMVersion, tvb, offset, 1, ENC_BIG_ENDIAN);
+    offset += 1;
+    proto_tree_add_item(subtree, hf_spdm_RequestResponseCode, tvb, offset, 1, ENC_BIG_ENDIAN);
+    offset += 1;
+    proto_tree_add_item(subtree, hf_spdm_Param1, tvb, offset, 1, ENC_BIG_ENDIAN);
+    offset += 1;
+    proto_tree_add_item(subtree, hf_spdm_Param2, tvb, offset, 1, ENC_BIG_ENDIAN);
+}
+
+static void
+dissect_challenge_response_message(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree _U_, guint32 offset)
+{   
+    proto_tree* subtree;
+
+    subtree = proto_tree_add_subtree(tree, tvb, offset, 0, spdm_ett.spdm, 0, "SPDM CHANLLENGE_AUTH RESPONSE MESSAGE");
+
+    proto_tree_add_item(subtree, hf_spdm_SPDMVersion, tvb, offset, 1, ENC_BIG_ENDIAN);
+    offset += 1;
+    proto_tree_add_item(subtree, hf_spdm_RequestResponseCode, tvb, offset, 1, ENC_BIG_ENDIAN);
+    offset += 1;
+    proto_tree_add_item(subtree, hf_spdm_Param1, tvb, offset, 1, ENC_BIG_ENDIAN);
+    offset += 1;
+    proto_tree_add_item(subtree, hf_spdm_Param2, tvb, offset, 1, ENC_BIG_ENDIAN);
+}
+
+static void
+dissect_get_mesurements_request_message(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree _U_, guint32 offset)
+{   
+    proto_tree* subtree;
+
+    subtree = proto_tree_add_subtree(tree, tvb, offset, 0, spdm_ett.spdm, 0, "SPDM GET MEASUREMENTS REQUEST MESSAGE");
+
+    proto_tree_add_item(subtree, hf_spdm_SPDMVersion, tvb, offset, 1, ENC_BIG_ENDIAN);
+    offset += 1;
+    proto_tree_add_item(subtree, hf_spdm_RequestResponseCode, tvb, offset, 1, ENC_BIG_ENDIAN);
+    offset += 1;
+    proto_tree_add_item(subtree, hf_spdm_Param1, tvb, offset, 1, ENC_BIG_ENDIAN);
+    offset += 1;
+    proto_tree_add_item(subtree, hf_spdm_Param2, tvb, offset, 1, ENC_BIG_ENDIAN);
+}
+
+static void
+dissect_mesurements_response_message(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree _U_, guint32 offset)
+{   
+    proto_tree* subtree;
+
+    subtree = proto_tree_add_subtree(tree, tvb, offset, 0, spdm_ett.spdm, 0, "SPDM MEASUREMENTS RESPONSE MESSAGE");
+
+    proto_tree_add_item(subtree, hf_spdm_SPDMVersion, tvb, offset, 1, ENC_BIG_ENDIAN);
+    offset += 1;
+    proto_tree_add_item(subtree, hf_spdm_RequestResponseCode, tvb, offset, 1, ENC_BIG_ENDIAN);
+    offset += 1;
+    proto_tree_add_item(subtree, hf_spdm_Param1, tvb, offset, 1, ENC_BIG_ENDIAN);
+    offset += 1;
+    proto_tree_add_item(subtree, hf_spdm_Param2, tvb, offset, 1, ENC_BIG_ENDIAN);
+}
+
+static void
+dissect_error_response_message(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree _U_, guint32 offset)
+{   
+    proto_tree* subtree;
+
+    subtree = proto_tree_add_subtree(tree, tvb, offset, 0, spdm_ett.spdm, 0, "SPDM ERROR RESPONSE MESSAGE");
+
+    proto_tree_add_item(subtree, hf_spdm_SPDMVersion, tvb, offset, 1, ENC_BIG_ENDIAN);
+    offset += 1;
+    proto_tree_add_item(subtree, hf_spdm_RequestResponseCode, tvb, offset, 1, ENC_BIG_ENDIAN);
+    offset += 1;
+    proto_tree_add_item(subtree, hf_spdm_Param1, tvb, offset, 1, ENC_BIG_ENDIAN);
+    offset += 1;
+    proto_tree_add_item(subtree, hf_spdm_Param2, tvb, offset, 1, ENC_BIG_ENDIAN);
+}
+
+static void
+dissect_respond_if_ready_request_message(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree _U_, guint32 offset)
+{   
+    proto_tree* subtree;
+
+    subtree = proto_tree_add_subtree(tree, tvb, offset, 0, spdm_ett.spdm, 0, "SPDM RESPOND IF READY REQUEST MESSAGE");
+
+    proto_tree_add_item(subtree, hf_spdm_SPDMVersion, tvb, offset, 1, ENC_BIG_ENDIAN);
+    offset += 1;
+    proto_tree_add_item(subtree, hf_spdm_RequestResponseCode, tvb, offset, 1, ENC_BIG_ENDIAN);
+    offset += 1;
+    proto_tree_add_item(subtree, hf_spdm_Param1, tvb, offset, 1, ENC_BIG_ENDIAN);
+    offset += 1;
+    proto_tree_add_item(subtree, hf_spdm_Param2, tvb, offset, 1, ENC_BIG_ENDIAN);
+}
+
+static void
+dissect_vendor_defined_request_message(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree _U_, guint32 offset)
+{   
+    proto_tree* subtree;
+
+    subtree = proto_tree_add_subtree(tree, tvb, offset, 0, spdm_ett.spdm, 0, "SPDM VENDOR DEFINED REQUEST MESSAGE");
+
+    proto_tree_add_item(subtree, hf_spdm_SPDMVersion, tvb, offset, 1, ENC_BIG_ENDIAN);
+    offset += 1;
+    proto_tree_add_item(subtree, hf_spdm_RequestResponseCode, tvb, offset, 1, ENC_BIG_ENDIAN);
+    offset += 1;
+    proto_tree_add_item(subtree, hf_spdm_Param1, tvb, offset, 1, ENC_BIG_ENDIAN);
+    offset += 1;
+    proto_tree_add_item(subtree, hf_spdm_Param2, tvb, offset, 1, ENC_BIG_ENDIAN);
+}
+
+static void
+dissect_vendor_defined_response_message(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree _U_, guint32 offset)
+{   
+    proto_tree* subtree;
+
+    subtree = proto_tree_add_subtree(tree, tvb, offset, 0, spdm_ett.spdm, 0, "SPDM VENDOR DEFINED RESPONSE MESSAGE");
+
+    proto_tree_add_item(subtree, hf_spdm_SPDMVersion, tvb, offset, 1, ENC_BIG_ENDIAN);
+    offset += 1;
+    proto_tree_add_item(subtree, hf_spdm_RequestResponseCode, tvb, offset, 1, ENC_BIG_ENDIAN);
+    offset += 1;
+    proto_tree_add_item(subtree, hf_spdm_Param1, tvb, offset, 1, ENC_BIG_ENDIAN);
+    offset += 1;
+    proto_tree_add_item(subtree, hf_spdm_Param2, tvb, offset, 1, ENC_BIG_ENDIAN);
+}
+
+static void
+dissect_key_exchange_request_message(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree _U_, guint32 offset)
+{   
+    proto_tree* subtree;
+
+    subtree = proto_tree_add_subtree(tree, tvb, offset, 0, spdm_ett.spdm, 0, "SPDM KEY EXCHANGE REQUEST MESSAGE");
+
+    proto_tree_add_item(subtree, hf_spdm_SPDMVersion, tvb, offset, 1, ENC_BIG_ENDIAN);
+    offset += 1;
+    proto_tree_add_item(subtree, hf_spdm_RequestResponseCode, tvb, offset, 1, ENC_BIG_ENDIAN);
+    offset += 1;
+    proto_tree_add_item(subtree, hf_spdm_Param1, tvb, offset, 1, ENC_BIG_ENDIAN);
+    offset += 1;
+    proto_tree_add_item(subtree, hf_spdm_Param2, tvb, offset, 1, ENC_BIG_ENDIAN);
+}
+
+static void
+dissect_key_exchange_response_message(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree _U_, guint32 offset)
+{   
+    proto_tree* subtree;
+
+    subtree = proto_tree_add_subtree(tree, tvb, offset, 0, spdm_ett.spdm, 0, "SPDM KEY EXCHANGE RESPONSE MESSAGE");
+
+    proto_tree_add_item(subtree, hf_spdm_SPDMVersion, tvb, offset, 1, ENC_BIG_ENDIAN);
+    offset += 1;
+    proto_tree_add_item(subtree, hf_spdm_RequestResponseCode, tvb, offset, 1, ENC_BIG_ENDIAN);
+    offset += 1;
+    proto_tree_add_item(subtree, hf_spdm_Param1, tvb, offset, 1, ENC_BIG_ENDIAN);
+    offset += 1;
+    proto_tree_add_item(subtree, hf_spdm_Param2, tvb, offset, 1, ENC_BIG_ENDIAN);
+}
+
+static void
+dissect_finish_request_message(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree _U_, guint32 offset)
+{   
+    proto_tree* subtree;
+
+    subtree = proto_tree_add_subtree(tree, tvb, offset, 0, spdm_ett.spdm, 0, "SPDM FINISH REQUEST MESSAGE");
+
+    proto_tree_add_item(subtree, hf_spdm_SPDMVersion, tvb, offset, 1, ENC_BIG_ENDIAN);
+    offset += 1;
+    proto_tree_add_item(subtree, hf_spdm_RequestResponseCode, tvb, offset, 1, ENC_BIG_ENDIAN);
+    offset += 1;
+    proto_tree_add_item(subtree, hf_spdm_Param1, tvb, offset, 1, ENC_BIG_ENDIAN);
+    offset += 1;
+    proto_tree_add_item(subtree, hf_spdm_Param2, tvb, offset, 1, ENC_BIG_ENDIAN);
+}
+
+static void
+dissect_finish_response_message(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree _U_, guint32 offset)
+{   
+    proto_tree* subtree;
+
+    subtree = proto_tree_add_subtree(tree, tvb, offset, 0, spdm_ett.spdm, 0, "SPDM FINISH RESPONSE MESSAGE");
+
+    proto_tree_add_item(subtree, hf_spdm_SPDMVersion, tvb, offset, 1, ENC_BIG_ENDIAN);
+    offset += 1;
+    proto_tree_add_item(subtree, hf_spdm_RequestResponseCode, tvb, offset, 1, ENC_BIG_ENDIAN);
+    offset += 1;
+    proto_tree_add_item(subtree, hf_spdm_Param1, tvb, offset, 1, ENC_BIG_ENDIAN);
+    offset += 1;
+    proto_tree_add_item(subtree, hf_spdm_Param2, tvb, offset, 1, ENC_BIG_ENDIAN);
+}
+
+static void
+dissect_psk_exchange_request_message(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree _U_, guint32 offset)
+{   
+    proto_tree* subtree;
+
+    subtree = proto_tree_add_subtree(tree, tvb, offset, 0, spdm_ett.spdm, 0, "SPDM PSK EXCHANGE REQUEST MESSAGE");
+
+    proto_tree_add_item(subtree, hf_spdm_SPDMVersion, tvb, offset, 1, ENC_BIG_ENDIAN);
+    offset += 1;
+    proto_tree_add_item(subtree, hf_spdm_RequestResponseCode, tvb, offset, 1, ENC_BIG_ENDIAN);
+    offset += 1;
+    proto_tree_add_item(subtree, hf_spdm_Param1, tvb, offset, 1, ENC_BIG_ENDIAN);
+    offset += 1;
+    proto_tree_add_item(subtree, hf_spdm_Param2, tvb, offset, 1, ENC_BIG_ENDIAN);
+}
+
+static void
+dissect_psk_exchange_response_message(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree _U_, guint32 offset)
+{   
+    proto_tree* subtree;
+
+    subtree = proto_tree_add_subtree(tree, tvb, offset, 0, spdm_ett.spdm, 0, "SPDM PSK EXCHANGE RESPONSE MESSAGE");
+
+    proto_tree_add_item(subtree, hf_spdm_SPDMVersion, tvb, offset, 1, ENC_BIG_ENDIAN);
+    offset += 1;
+    proto_tree_add_item(subtree, hf_spdm_RequestResponseCode, tvb, offset, 1, ENC_BIG_ENDIAN);
+    offset += 1;
+    proto_tree_add_item(subtree, hf_spdm_Param1, tvb, offset, 1, ENC_BIG_ENDIAN);
+    offset += 1;
+    proto_tree_add_item(subtree, hf_spdm_Param2, tvb, offset, 1, ENC_BIG_ENDIAN);
+}
+
+static void
+dissect_psk_finish_request_message(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree _U_, guint32 offset)
+{   
+    proto_tree* subtree;
+
+    subtree = proto_tree_add_subtree(tree, tvb, offset, 0, spdm_ett.spdm, 0, "SPDM PSK FINISH REQUEST MESSAGE");
+
+    proto_tree_add_item(subtree, hf_spdm_SPDMVersion, tvb, offset, 1, ENC_BIG_ENDIAN);
+    offset += 1;
+    proto_tree_add_item(subtree, hf_spdm_RequestResponseCode, tvb, offset, 1, ENC_BIG_ENDIAN);
+    offset += 1;
+    proto_tree_add_item(subtree, hf_spdm_Param1, tvb, offset, 1, ENC_BIG_ENDIAN);
+    offset += 1;
+    proto_tree_add_item(subtree, hf_spdm_Param2, tvb, offset, 1, ENC_BIG_ENDIAN);
+}
+
+static void
+dissect_psk_finish_response_message(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree _U_, guint32 offset)
+{   
+    proto_tree* subtree;
+
+    subtree = proto_tree_add_subtree(tree, tvb, offset, 0, spdm_ett.spdm, 0, "SPDM PSK FINISH RESPONSE MESSAGE");
+
+    proto_tree_add_item(subtree, hf_spdm_SPDMVersion, tvb, offset, 1, ENC_BIG_ENDIAN);
+    offset += 1;
+    proto_tree_add_item(subtree, hf_spdm_RequestResponseCode, tvb, offset, 1, ENC_BIG_ENDIAN);
+    offset += 1;
+    proto_tree_add_item(subtree, hf_spdm_Param1, tvb, offset, 1, ENC_BIG_ENDIAN);
+    offset += 1;
+    proto_tree_add_item(subtree, hf_spdm_Param2, tvb, offset, 1, ENC_BIG_ENDIAN);
+}
+
+static void
+dissect_heartbeat_request_message(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree _U_, guint32 offset)
+{   
+    proto_tree* subtree;
+
+    subtree = proto_tree_add_subtree(tree, tvb, offset, 0, spdm_ett.spdm, 0, "SPDM HEARTBEAT REQUEST MESSAGE");
+
+    proto_tree_add_item(subtree, hf_spdm_SPDMVersion, tvb, offset, 1, ENC_BIG_ENDIAN);
+    offset += 1;
+    proto_tree_add_item(subtree, hf_spdm_RequestResponseCode, tvb, offset, 1, ENC_BIG_ENDIAN);
+    offset += 1;
+    proto_tree_add_item(subtree, hf_spdm_Param1, tvb, offset, 1, ENC_BIG_ENDIAN);
+    offset += 1;
+    proto_tree_add_item(subtree, hf_spdm_Param2, tvb, offset, 1, ENC_BIG_ENDIAN);
+}
+
+static void
+dissect_heartbeat_response_message(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree _U_, guint32 offset)
+{   
+    proto_tree* subtree;
+
+    subtree = proto_tree_add_subtree(tree, tvb, offset, 0, spdm_ett.spdm, 0, "SPDM HEARTBEAT RESPONSE MESSAGE");
+
+    proto_tree_add_item(subtree, hf_spdm_SPDMVersion, tvb, offset, 1, ENC_BIG_ENDIAN);
+    offset += 1;
+    proto_tree_add_item(subtree, hf_spdm_RequestResponseCode, tvb, offset, 1, ENC_BIG_ENDIAN);
+    offset += 1;
+    proto_tree_add_item(subtree, hf_spdm_Param1, tvb, offset, 1, ENC_BIG_ENDIAN);
+    offset += 1;
+    proto_tree_add_item(subtree, hf_spdm_Param2, tvb, offset, 1, ENC_BIG_ENDIAN);
+}
+
+static void
+dissect_key_update_request_message(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree _U_, guint32 offset)
+{   
+    proto_tree* subtree;
+
+    subtree = proto_tree_add_subtree(tree, tvb, offset, 0, spdm_ett.spdm, 0, "SPDM KEY UPDATE REQUEST MESSAGE");
+
+    proto_tree_add_item(subtree, hf_spdm_SPDMVersion, tvb, offset, 1, ENC_BIG_ENDIAN);
+    offset += 1;
+    proto_tree_add_item(subtree, hf_spdm_RequestResponseCode, tvb, offset, 1, ENC_BIG_ENDIAN);
+    offset += 1;
+    proto_tree_add_item(subtree, hf_spdm_Param1, tvb, offset, 1, ENC_BIG_ENDIAN);
+    offset += 1;
+    proto_tree_add_item(subtree, hf_spdm_Param2, tvb, offset, 1, ENC_BIG_ENDIAN);
+}
+
+static void
+dissect_key_update_ack_response_message(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree _U_, guint32 offset)
+{   
+    proto_tree* subtree;
+
+    subtree = proto_tree_add_subtree(tree, tvb, offset, 0, spdm_ett.spdm, 0, "SPDM KEY UPDATE ACK RESPONSE MESSAGE");
+
+    proto_tree_add_item(subtree, hf_spdm_SPDMVersion, tvb, offset, 1, ENC_BIG_ENDIAN);
+    offset += 1;
+    proto_tree_add_item(subtree, hf_spdm_RequestResponseCode, tvb, offset, 1, ENC_BIG_ENDIAN);
+    offset += 1;
+    proto_tree_add_item(subtree, hf_spdm_Param1, tvb, offset, 1, ENC_BIG_ENDIAN);
+    offset += 1;
+    proto_tree_add_item(subtree, hf_spdm_Param2, tvb, offset, 1, ENC_BIG_ENDIAN);
+}
+
+static void
+dissect_get_encapsulated_request_message(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree _U_, guint32 offset)
+{   
+    proto_tree* subtree;
+
+    subtree = proto_tree_add_subtree(tree, tvb, offset, 0, spdm_ett.spdm, 0, "SPDM GET ENCAPSULATED REQUEST MESSAGE");
+
+    proto_tree_add_item(subtree, hf_spdm_SPDMVersion, tvb, offset, 1, ENC_BIG_ENDIAN);
+    offset += 1;
+    proto_tree_add_item(subtree, hf_spdm_RequestResponseCode, tvb, offset, 1, ENC_BIG_ENDIAN);
+    offset += 1;
+    proto_tree_add_item(subtree, hf_spdm_Param1, tvb, offset, 1, ENC_BIG_ENDIAN);
+    offset += 1;
+    proto_tree_add_item(subtree, hf_spdm_Param2, tvb, offset, 1, ENC_BIG_ENDIAN);
+}
+
+static void
+dissect_encapsulated_response_message(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree _U_, guint32 offset)
+{   
+    proto_tree* subtree;
+
+    subtree = proto_tree_add_subtree(tree, tvb, offset, 0, spdm_ett.spdm, 0, "SPDM ENCAPSULATED RESPONSE MESSAGE");
+
+    proto_tree_add_item(subtree, hf_spdm_SPDMVersion, tvb, offset, 1, ENC_BIG_ENDIAN);
+    offset += 1;
+    proto_tree_add_item(subtree, hf_spdm_RequestResponseCode, tvb, offset, 1, ENC_BIG_ENDIAN);
+    offset += 1;
+    proto_tree_add_item(subtree, hf_spdm_Param1, tvb, offset, 1, ENC_BIG_ENDIAN);
+    offset += 1;
+    proto_tree_add_item(subtree, hf_spdm_Param2, tvb, offset, 1, ENC_BIG_ENDIAN);
+}
+
+static void
+dissect_deliver_encapsulated_request_message(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree _U_, guint32 offset)
+{   
+    proto_tree* subtree;
+
+    subtree = proto_tree_add_subtree(tree, tvb, offset, 0, spdm_ett.spdm, 0, "SPDM DELIVER ENCAPSULATED REQUEST MESSAGE");
+
+    proto_tree_add_item(subtree, hf_spdm_SPDMVersion, tvb, offset, 1, ENC_BIG_ENDIAN);
+    offset += 1;
+    proto_tree_add_item(subtree, hf_spdm_RequestResponseCode, tvb, offset, 1, ENC_BIG_ENDIAN);
+    offset += 1;
+    proto_tree_add_item(subtree, hf_spdm_Param1, tvb, offset, 1, ENC_BIG_ENDIAN);
+    offset += 1;
+    proto_tree_add_item(subtree, hf_spdm_Param2, tvb, offset, 1, ENC_BIG_ENDIAN);
+}
+
+static void
+dissect_encapsulated_ack_response_message(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree _U_, guint32 offset)
+{   
+    proto_tree* subtree;
+
+    subtree = proto_tree_add_subtree(tree, tvb, offset, 0, spdm_ett.spdm, 0, "SPDM ENCAPSULATED ACK RESPONSE MESSAGE");
+
+    proto_tree_add_item(subtree, hf_spdm_SPDMVersion, tvb, offset, 1, ENC_BIG_ENDIAN);
+    offset += 1;
+    proto_tree_add_item(subtree, hf_spdm_RequestResponseCode, tvb, offset, 1, ENC_BIG_ENDIAN);
+    offset += 1;
+    proto_tree_add_item(subtree, hf_spdm_Param1, tvb, offset, 1, ENC_BIG_ENDIAN);
+    offset += 1;
+    proto_tree_add_item(subtree, hf_spdm_Param2, tvb, offset, 1, ENC_BIG_ENDIAN);
+}
+
+static void
+dissect_end_session_request_message(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree _U_, guint32 offset)
+{   
+    proto_tree* subtree;
+
+    subtree = proto_tree_add_subtree(tree, tvb, offset, 0, spdm_ett.spdm, 0, "SPDM END SESSION REQUEST MESSAGE");
+
+    proto_tree_add_item(subtree, hf_spdm_SPDMVersion, tvb, offset, 1, ENC_BIG_ENDIAN);
+    offset += 1;
+    proto_tree_add_item(subtree, hf_spdm_RequestResponseCode, tvb, offset, 1, ENC_BIG_ENDIAN);
+    offset += 1;
+    proto_tree_add_item(subtree, hf_spdm_Param1, tvb, offset, 1, ENC_BIG_ENDIAN);
+    offset += 1;
+    proto_tree_add_item(subtree, hf_spdm_Param2, tvb, offset, 1, ENC_BIG_ENDIAN);
+}
+
+static void
+dissect_end_session_ack_response_message(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree _U_, guint32 offset)
+{   
+    proto_tree* subtree;
+
+    subtree = proto_tree_add_subtree(tree, tvb, offset, 0, spdm_ett.spdm, 0, "SPDM END SESSION ACK RESPONSE MESSAGE");
+
+    proto_tree_add_item(subtree, hf_spdm_SPDMVersion, tvb, offset, 1, ENC_BIG_ENDIAN);
+    offset += 1;
+    proto_tree_add_item(subtree, hf_spdm_RequestResponseCode, tvb, offset, 1, ENC_BIG_ENDIAN);
+    offset += 1;
+    proto_tree_add_item(subtree, hf_spdm_Param1, tvb, offset, 1, ENC_BIG_ENDIAN);
+    offset += 1;
+    proto_tree_add_item(subtree, hf_spdm_Param2, tvb, offset, 1, ENC_BIG_ENDIAN);
+}
+
 
 
 /* This method dissects fully reassembled messages */
@@ -267,8 +826,101 @@ dissect_spdm_message(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree _U_
                 case CAPABILITIES_RESPONSE_RR_CODE:
                     dissect_capabilities_response_message(tvb, pinfo, subtree, offset);
                     break;
+                case NEGOTIATE_ALGORITHMS_REQUEST_RR_CODE:
+                    dissect_negotiate_algorithms_request_message(tvb, pinfo, subtree, offset);
+                    break;
+                case ALGORITHMS_RESPONSE_RR_CODE:
+                    dissect_algorithms_response_message(tvb, pinfo, subtree, offset);
+                    break;
                 case GET_DIGESTS_REQUEST_RR_CODE:
                     dissect_get_digests_request_message(tvb, pinfo, subtree, offset);
+                    break;
+                case DIGESTS_RESPONSE_RR_CODE:
+                    dissect_digests_response_message(tvb, pinfo, subtree, offset);
+                    break;
+                case GET_CERTIFICATE_REQUEST_RR_CODE:
+                    dissect_get_certificate_request_message(tvb, pinfo, subtree, offset);
+                    break;
+                case CERTIFICATE_RESPONSE_RR_CODE:
+                    dissect_certificate_response_message(tvb, pinfo, subtree, offset);
+                    break;
+                case CHALLENGE_REQUEST_RR_CODE:
+                    dissect_get_challenge_request_message(tvb, pinfo, subtree, offset);
+                    break;
+                case CHALLENGE_AUTH_RESPONSE_RR_CODE:
+                    dissect_challenge_response_message(tvb, pinfo, subtree, offset);
+                    break;
+                case GET_MEASUREMENTS_REQUEST_RR_CODE:
+                    dissect_get_mesurements_request_message(tvb, pinfo, subtree, offset);
+                    break;
+                case MEASUREMENTS_RESPONSE_RR_CODE :
+                    dissect_mesurements_response_message(tvb, pinfo, subtree, offset);
+                    break;
+                case ERROR_RESPONSE_RR_CODE:
+                    dissect_error_response_message(tvb, pinfo, subtree, offset);
+                    break;
+                case RESPOND_IF_READY_REQUEST_RR_CODE:
+                    dissect_respond_if_ready_request_message(tvb, pinfo, subtree, offset);
+                    break;
+                case VENDOR_DEFINED_REQUEST_RR_CODE:
+                    dissect_vendor_defined_request_message(tvb, pinfo, subtree, offset);
+                    break;
+                case VENDOR_DEFINED_RESPONSE_RR_CODE:
+                    dissect_vendor_defined_response_message(tvb, pinfo, subtree, offset);
+                    break;
+                case KEY_EXCHANGE_REQUEST_RR_CODE:
+                    dissect_key_exchange_request_message(tvb, pinfo, subtree, offset);
+                    break;
+                case KEY_EXCHANGE_RESPONSE_RR_CODE:
+                    dissect_key_exchange_response_message(tvb, pinfo, subtree, offset);
+                    break;
+                case FINISH_REQUEST_RR_CODE:
+                    dissect_finish_request_message(tvb, pinfo, subtree, offset);
+                    break;
+                case FINISH_RESPONSE_RR_CODE:
+                    dissect_finish_response_message(tvb, pinfo, subtree, offset);
+                    break;
+                case PSK_EXCHANGE_REQUEST_RR_CODE:
+                    dissect_psk_exchange_request_message(tvb, pinfo, subtree, offset);
+                    break;
+                case PSK_EXCHANGE_RESPONSE_RR_CODE:
+                    dissect_psk_exchange_response_message(tvb, pinfo, subtree, offset);
+                    break;
+                case PSK_FINISH_REQUEST_RR_CODE:
+                    dissect_psk_finish_request_message(tvb, pinfo, subtree, offset);
+                    break;
+                case PSK_FINISH_RESPONSE_RR_CODE:
+                    dissect_psk_finish_response_message(tvb, pinfo, subtree, offset);
+                    break;
+                case HEARTBEAT_REQUEST_RR_CODE:
+                    dissect_heartbeat_request_message(tvb, pinfo, subtree, offset);
+                    break;
+                case HEARTBEAT_ACK_RESPONSE_RR_CODE:
+                    dissect_heartbeat_response_message(tvb, pinfo, subtree, offset);
+                    break;
+                case KEY_UPDATE_REQUEST_RR_CODE:
+                    dissect_key_update_request_message(tvb, pinfo, subtree, offset);
+                    break;
+                case KEY_UPDATE_ACK_RESPONSE_RR_CODE:
+                    dissect_key_update_ack_response_message(tvb, pinfo, subtree, offset);
+                    break;
+                case GET_ENCAPSULATED_REQUEST_RR_CODE:
+                    dissect_get_encapsulated_request_message(tvb, pinfo, subtree, offset);
+                    break;
+                case ENCAPSULATED_RESPONSE_RR_CODE:
+                    dissect_encapsulated_response_message(tvb, pinfo, subtree, offset);
+                    break;
+                case DELIVER_ENCAPSULATED_REQUEST_RR_CODE:
+                    dissect_deliver_encapsulated_request_message(tvb, pinfo, subtree, offset);
+                    break;
+                case ENCAPSULATED_ACK_RESPONSE_RR_CODE:
+                    dissect_encapsulated_ack_response_message(tvb, pinfo, subtree, offset);
+                    break;
+                case END_SESSION_REQUEST_RR_CODE:
+                    dissect_end_session_request_message(tvb, pinfo, subtree, offset);
+                    break;
+                case END_SESSION_ACK_RESPONSE_RR_CODE:
+                    dissect_end_session_ack_response_message(tvb, pinfo, subtree, offset);
                     break;
                 default:
                     break;
@@ -324,7 +976,6 @@ proto_register_spdm(void)
             NULL, 0x0,
             NULL, HFILL }
         },
-
         { &hf_spdm_RecieveCommand,
             { "Platform Port Recieve Command", "spdm.RecieveCommand",
             FT_UINT32, BASE_HEX,
@@ -418,6 +1069,114 @@ proto_register_spdm(void)
         { &hf_spdm_CapabilitiesFlags,
             { "Flags", "spdm.Flags",
             FT_UINT32, BASE_HEX,
+            NULL, 0x0,
+            NULL, HFILL }
+        },
+        { &hf_spdm_ALG_Length,
+            { "Length", "spdm.Length",
+            FT_UINT16, BASE_HEX,
+            NULL, 0x0,
+            NULL, HFILL }
+        },
+        { &hf_spdm_ALG_MeasurementSpecification,
+            { "MeasurementSpecification", "spdm.MeasurementSpecification",
+            FT_UINT8, BASE_HEX,
+            NULL, 0x0,
+            NULL, HFILL }
+        },
+        { &hf_spdm_ALG_BaseAsymAlgo,
+            { "BaseAsymAlgo", "spdm.BaseAsymAlgo",
+            FT_UINT64, BASE_HEX,
+            NULL, 0x0,
+            NULL, HFILL }
+        },
+        { &hf_spdm_ALG_BaseHashAlgo,
+            { "BaseHashAlgo", "spdm.BaseHashAlgo",
+            FT_UINT64, BASE_HEX,
+            NULL, 0x0,
+            NULL, HFILL }
+        },
+        { &hf_spdm_ALG_ExtAsymCount,
+            { "ExtAsymCount", "spdm.ExtAsymCount",
+            FT_UINT8, BASE_HEX,
+            NULL, 0x0,
+            NULL, HFILL }
+        },
+        { &hf_spdm_ALG_ExtHashCount,
+            { "ExtHashCount", "spdm.ExtHashCount",
+            FT_UINT8, BASE_HEX,
+            NULL, 0x0,
+            NULL, HFILL }
+        },
+        { &hf_spdm_ALG_ExtAsym,
+            { "ExtAsym", "spdm.ExtAsym",
+            FT_UINT32, BASE_HEX,
+            NULL, 0x0,
+            NULL, HFILL }
+        },
+        { &hf_spdm_ALG_ExtHash,
+            { "ExtHash", "spdm.ExtHash",
+            FT_UINT32, BASE_HEX,
+            NULL, 0x0,
+            NULL, HFILL }
+        },
+        { &hf_spdm_ALG_ReqAlgStruct,
+            { "ReqAlgStruct", "spdm.ReqAlgStruct",
+            FT_UINT8, BASE_HEX,
+            NULL, 0x0,
+            NULL, HFILL }
+        },
+        { &hf_spdm_ALG_MeasurementSpecificationSel,
+            { "MeasurementSpecificationSel", "spdm.MeasurementSpecificationSel",
+            FT_UINT8, BASE_HEX,
+            NULL, 0x0,
+            NULL, HFILL }
+        },
+        { &hf_spdm_ALG_MeasurementHashAlgo,
+            { "MeasurementHashAlgo", "spdm.MeasurementHashAlgo",
+            FT_UINT32, BASE_HEX,
+            NULL, 0x0,
+            NULL, HFILL }
+        },
+        { &hf_spdm_ALG_BaseAsymSel,
+            { "BaseAsymSel", "spdm.BaseAsymSel",
+            FT_UINT32, BASE_HEX,
+            NULL, 0x0,
+            NULL, HFILL }
+        },
+        { &hf_spdm_ALG_BaseHashSel,
+            { "BaseHashSel", "spdm.BaseHashSel",
+            FT_UINT32, BASE_HEX,
+            NULL, 0x0,
+            NULL, HFILL }
+        },
+        { &hf_spdm_ALG_ExtAsymSelCount,
+            { "ExtAsymSelCount", "spdm.ExtAsymSelCount",
+            FT_UINT8, BASE_HEX,
+            NULL, 0x0,
+            NULL, HFILL }
+        },
+        { &hf_spdm_ALG_ExtHashSelCount,
+            { "ExtHashSelCount", "spdm.ExtHashSelCount",
+            FT_UINT8, BASE_HEX,
+            NULL, 0x0,
+            NULL, HFILL }
+        },
+        { &hf_spdm_ALG_ExtAsymSel,
+            { "ExtAsymSel", "spdm.ExtAsymSel",
+            FT_UINT8, BASE_HEX,
+            NULL, 0x0,
+            NULL, HFILL }
+        },
+        { &hf_spdm_ALG_ExtHashSel,
+            { "ExtHashSel", "spdm.ExtHashSel",
+            FT_UINT8, BASE_HEX,
+            NULL, 0x0,
+            NULL, HFILL }
+        },
+        { &hf_spdm_ALG_RespAlgStruct,
+            { "RespAlgStruct", "spdm.RespAlgStruct",
+            FT_UINT8, BASE_HEX,
             NULL, 0x0,
             NULL, HFILL }
         },
