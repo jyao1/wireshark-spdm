@@ -1,12 +1,24 @@
+#pragma warning(disable:4005)
+#pragma warning(disable:4022)
+#pragma warning(disable:4090)
+#pragma warning(disable:4189)
+
 #include "config.h"
 
 #include <epan/packet.h>
 #include <epan/prefs.h>
 #include <epan/dissectors/packet-tcp.h>
-#include <Spdm.h>
+#include <openspdm/Tool/SpdmDump/SpdmDump.h>
+#include <openspdm/Include/IndustryStandard/Spdm.h>
 
 #define SPDM_PORT 2323
 #define FRAME_HEADER_LEN 12
+
+guint RecordMeassageNum[1024];
+gint RecordMessageIndex = 0;
+
+char PskBuffer[] = "5465737450736b4461746100";
+char DheSecretBuffer[] = "c7ac17ee29b6a4f84e978223040b7eddff792477a6f7fc0f51faa553fee58175";
 
 guint8  ChallengeRequestParam2;
 guint8  MesurementsRequestParam1;
@@ -145,6 +157,8 @@ static int hf_spdm_EncapsulatedResponse = -1;
 
 static int hf_spdm_SessionId = -1;
 static int hf_spdm_SequenceNum = -1;
+static int hf_spdm_SequenceNumSize = -1;
+static int hf_spdm_MessageSize = -1;
 
 static struct {
     gint spdm;
@@ -218,28 +232,6 @@ GetSpdmDheKeySize(guint32 DHENamedGroup) {
     }
     return 0;
 }
-
-// static guint32 
-// GetMeasurementHashLen(guint32 Algo) {
-//     switch(Algo) {
-//         case BIT0:
-//             return 0;
-//         case BIT1:
-//             return 256 / 8;
-//         case BIT2:
-//             return 384 / 8;
-//         case BIT3:
-//             return 512 / 8;
-//         case BIT4:
-//             return 256 / 8;
-//         case BIT5:
-//             return 384 / 8;
-//         case BIT6:
-//             return 512 / 8;
-//         default:
-//             return 0;
-//     }
-// }
 
 static void
 dissect_get_version_request_message(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree _U_, gint offset)
@@ -1184,25 +1176,46 @@ dissect_end_session_ack_response_message(tvbuff_t *tvb, packet_info *pinfo _U_, 
     proto_tree_add_item(subtree, hf_spdm_Param2, tvb, offset, 1, ENC_LITTLE_ENDIAN);
 }
 
+static
+gboolean
+check_message_duplicate_dissect(guint number)
+{
+    gint index;
+
+    for (index = 0; index < sizeof(RecordMeassageNum); index ++) {
+        if (number == RecordMeassageNum[index]) {
+            return FALSE;
+        }
+    }
+
+    return TRUE;
+}
+
 /* This method dissects fully reassembled messages */
 static int
 dissect_spdm_message(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree _U_, void *data _U_)
 {  
-    gint offset = 0;
+    gint    offset = 0;
+    guint   length;
     guint32 command;
     guint32 transporttype;
     guint32 mesgsize;
+    
     unsigned RequestResponseCode;
 
     proto_item* item;
     proto_tree* subtree;
-    
+
     col_set_str(pinfo->cinfo, COL_PROTOCOL, "SPDM");
     col_clear(pinfo->cinfo, COL_INFO);
     col_append_ports(pinfo->cinfo, COL_INFO, PT_TCP, pinfo->srcport, pinfo->destport);
     
     item = proto_tree_add_item(tree, proto_spdm, tvb, 0, -1, ENC_NA);
-    
+
+    length = tvb_captured_length(tvb);
+
+    const guchar *cp = tvb_get_ptr(tvb, 0, length);
+
     command = tvb_get_guint32(tvb, 0, ENC_BIG_ENDIAN);
     transporttype = tvb_get_guint32(tvb, 4, ENC_BIG_ENDIAN);
     mesgsize = tvb_get_guint32(tvb, 8, ENC_BIG_ENDIAN);
@@ -1230,6 +1243,12 @@ dissect_spdm_message(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree _U_
     }
 
     if (command == 0x00000001) {
+        if (check_message_duplicate_dissect(pinfo->num)) {
+            RecordMeassageNum[RecordMessageIndex] = pinfo->num;
+            RecordMessageIndex++;
+            DumpMctpMessage(cp + 12, (guint32) length);
+        }
+
         proto_tree_add_item(subtree, hf_spdm_MCTPMessageType, tvb, offset, 1, ENC_BIG_ENDIAN);
         guint MCTPMessageType = tvb_get_guint8(tvb, 12);
         offset += 1;
@@ -1349,10 +1368,133 @@ dissect_spdm_message(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree _U_
             }
         }
         else if(MCTPMessageType == 0x06) {
-            proto_tree_add_item(subtree, hf_spdm_SessionId, tvb, offset, 4, ENC_BIG_ENDIAN);
-            offset += 4;
-            proto_tree_add_item(subtree, hf_spdm_SequenceNum, tvb, offset, 2, ENC_BIG_ENDIAN);
-            offset += 2;
+            guint Decoded_MCTPMessageType = tvb_get_guint8(tvb, 23);
+
+            if (Decoded_MCTPMessageType == 0x05) {
+                proto_tree_add_item(subtree, hf_spdm_SessionId, tvb, offset, 4, ENC_LITTLE_ENDIAN);
+                offset += 4;
+                proto_tree_add_item(subtree, hf_spdm_SequenceNum, tvb, offset, 2, ENC_LITTLE_ENDIAN);
+                offset += 2;
+                proto_tree_add_item(subtree, hf_spdm_SequenceNumSize, tvb, offset, 2, ENC_LITTLE_ENDIAN);
+                offset += 2;
+                proto_tree_add_item(subtree, hf_spdm_MessageSize, tvb, offset, 2, ENC_LITTLE_ENDIAN);
+                offset += 2;
+
+                RequestResponseCode = tvb_get_guint8(tvb, 25);
+                offset += 1;
+                switch(RequestResponseCode) {
+                    case SPDM_GET_VERSION:
+                        dissect_get_version_request_message(tvb, pinfo, subtree, offset);
+                        break;
+                    case SPDM_VERSION:
+                        dissect_version_response_message(tvb, pinfo, subtree, offset);
+                        break;
+                    case SPDM_GET_CAPABILITIES:
+                        dissect_get_capabilities_request_message(tvb, pinfo, subtree, offset);
+                        break;
+                    case SPDM_CAPABILITIES :
+                        dissect_capabilities_response_message(tvb, pinfo, subtree, offset);
+                        break;
+                    case SPDM_NEGOTIATE_ALGORITHMS:
+                        dissect_negotiate_algorithms_request_message(tvb, pinfo, subtree, offset);
+                        break;
+                    case SPDM_ALGORITHMS:
+                        dissect_algorithms_response_message(tvb, pinfo, subtree, offset);
+                        break;
+                    case SPDM_GET_DIGESTS:
+                        dissect_get_digests_request_message(tvb, pinfo, subtree, offset);
+                        break;
+                    case SPDM_DIGESTS:
+                        dissect_digests_response_message(tvb, pinfo, subtree, offset);
+                        break;
+                    case SPDM_GET_CERTIFICATE:
+                        dissect_get_certificate_request_message(tvb, pinfo, subtree, offset);
+                        break;
+                    case SPDM_CERTIFICATE:
+                        dissect_certificate_response_message(tvb, pinfo, subtree, offset);
+                        break;
+                    case SPDM_CHALLENGE:
+                        dissect_get_challenge_request_message(tvb, pinfo, subtree, offset);
+                        break;
+                    case SPDM_CHALLENGE_AUTH:
+                        dissect_challenge_response_message(tvb, pinfo, subtree, offset);
+                        break;
+                    case SPDM_GET_MEASUREMENTS:
+                        dissect_get_mesurements_request_message(tvb, pinfo, subtree, offset);
+                        break;
+                    case SPDM_MEASUREMENTS:
+                        dissect_mesurements_response_message(tvb, pinfo, subtree, offset);
+                        break;
+                    case SPDM_ERROR:
+                        dissect_error_response_message(tvb, pinfo, subtree, offset);
+                        break;
+                    case SPDM_RESPOND_IF_READY:
+                        dissect_respond_if_ready_request_message(tvb, pinfo, subtree, offset);
+                        break;
+                    case SPDM_VENDOR_DEFINED_REQUEST:
+                        dissect_vendor_defined_request_message(tvb, pinfo, subtree, offset);
+                        break;
+                    case SPDM_VENDOR_DEFINED_RESPONSE:
+                        dissect_vendor_defined_response_message(tvb, pinfo, subtree, offset);
+                        break;
+                    case SPDM_KEY_EXCHANGE:
+                        dissect_key_exchange_request_message(tvb, pinfo, subtree, offset);
+                        break;
+                    case SPDM_KEY_EXCHANGE_RSP:
+                        dissect_key_exchange_response_message(tvb, pinfo, subtree, offset);
+                        break;
+                    case SPDM_FINISH:
+                        dissect_finish_request_message(tvb, pinfo, subtree, offset);
+                        break;
+                    case SPDM_FINISH_RSP:
+                        dissect_finish_response_message(tvb, pinfo, subtree, offset);
+                        break;
+                    case SPDM_PSK_EXCHANGE:
+                        dissect_psk_exchange_request_message(tvb, pinfo, subtree, offset);
+                        break;
+                    case SPDM_PSK_EXCHANGE_RSP:
+                        dissect_psk_exchange_response_message(tvb, pinfo, subtree, offset);
+                        break;
+                    case SPDM_PSK_FINISH:
+                        dissect_psk_finish_request_message(tvb, pinfo, subtree, offset);
+                        break;
+                    case SPDM_PSK_FINISH_RSP:
+                        dissect_psk_finish_response_message(tvb, pinfo, subtree, offset);
+                        break;
+                    case SPDM_HEARTBEAT:
+                        dissect_heartbeat_request_message(tvb, pinfo, subtree, offset);
+                        break;
+                    case SPDM_HEARTBEAT_ACK:
+                        dissect_heartbeat_response_message(tvb, pinfo, subtree, offset);
+                        break;
+                    case SPDM_KEY_UPDATE:
+                        dissect_key_update_request_message(tvb, pinfo, subtree, offset);
+                        break;
+                    case SPDM_KEY_UPDATE_ACK:
+                        dissect_key_update_ack_response_message(tvb, pinfo, subtree, offset);
+                        break;
+                    case SPDM_GET_ENCAPSULATED_REQUEST:
+                        dissect_get_encapsulated_request_message(tvb, pinfo, subtree, offset);
+                        break;
+                    case SPDM_ENCAPSULATED_REQUEST:
+                        dissect_encapsulated_response_message(tvb, pinfo, subtree, offset);
+                        break;
+                    case SPDM_DELIVER_ENCAPSULATED_RESPONSE:
+                        dissect_deliver_encapsulated_request_message(tvb, pinfo, subtree, offset);
+                        break;
+                    case SPDM_ENCAPSULATED_RESPONSE_ACK:
+                        dissect_encapsulated_ack_response_message(tvb, pinfo, subtree, offset);
+                        break;
+                    case SPDM_END_SESSION:
+                        dissect_end_session_request_message(tvb, pinfo, subtree, offset);
+                        break;
+                    case SPDM_END_SESSION_ACK:
+                        dissect_end_session_ack_response_message(tvb, pinfo, subtree, offset);
+                        break;
+                    default:
+                        break;
+                }
+            }
         }
     }
        
@@ -1363,7 +1505,7 @@ dissect_spdm_message(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree _U_
 static guint32
 get_spdm_message_len(packet_info *pinfo _U_, tvbuff_t *tvb, int offset, void *data _U_)
 {
-    return (guint32)tvb_get_ntohl(tvb, offset + 8) + FRAME_HEADER_LEN; /* e.g. length is at offset 4 */
+    return (guint32)tvb_get_ntohl(tvb, offset + 8) + FRAME_HEADER_LEN; 
 }
 
 /* The main dissecting routine */
@@ -1965,6 +2107,18 @@ proto_register_spdm(void)
             NULL, 0x0,
             NULL, HFILL }
         },
+        { &hf_spdm_SequenceNumSize,
+            { "SequenceNumSize", "spdm.SequenceNumSize",
+            FT_UINT16, BASE_HEX,
+            NULL, 0x0,
+            NULL, HFILL }
+        },
+        { &hf_spdm_MessageSize,
+            { "MessageSize", "spdm.MessageSize",
+            FT_UINT16, BASE_HEX,
+            NULL, 0x0,
+            NULL, HFILL }
+        },
     };
 
     proto_spdm = proto_register_protocol (
@@ -1993,4 +2147,12 @@ proto_reg_handoff_spdm(void)
 
     spdm_handle = create_dissector_handle(dissect_spdm, proto_spdm);
     dissector_add_uint("tcp.port", SPDM_PORT, spdm_handle);
+
+    if (!HexStringToBuffer (PskBuffer, &mPskBuffer, &mPskBufferSize)) {
+        exit (0);
+        }
+    if (!HexStringToBuffer (DheSecretBuffer, &mDheSecretBuffer, &mDheSecretBufferSize)) {
+        exit (0);
+    }
+    InitSpdmDump();
 }

@@ -23,7 +23,29 @@ set_source_files_properties(
 	COMPILE_FLAGS "${WERROR_COMMON_FLAGS}"
 )
 
-include_directories(${CMAKE_CURRENT_SOURCE_DIR})
+set(OPENSPDM_LIBRARY
+    ${PROJECT_SOURCE_DIR}/openspdm/build/lib/BaseMemoryLib.lib
+    ${PROJECT_SOURCE_DIR}/openspdm/build/lib/DebugLibNull.lib
+    ${PROJECT_SOURCE_DIR}/openspdm/build/lib/SpdmCommonLib.lib
+    ${PROJECT_SOURCE_DIR}/openspdm/build/lib/MbedTlsLib.lib
+    ${PROJECT_SOURCE_DIR}/openspdm/build/lib/RngLib.lib
+    ${PROJECT_SOURCE_DIR}/openspdm/build/lib/BaseCryptLibMbedTls.lib
+    ${PROJECT_SOURCE_DIR}/openspdm/build/lib/MemoryAllocationLib.lib
+    ${PROJECT_SOURCE_DIR}/openspdm/build/lib/SpdmCryptLib.lib
+    ${PROJECT_SOURCE_DIR}/openspdm/build/lib/SpdmSecuredMessageLib.lib
+    ${PROJECT_SOURCE_DIR}/openspdm/build/lib/SpdmTransportMctpLib.lib
+    ${PROJECT_SOURCE_DIR}/openspdm/build/lib/SpdmTransportPciDoeLib.lib
+    ${PROJECT_SOURCE_DIR}/openspdm/build/lib/SpdmDeviceSecretLibNull.lib
+    ${PROJECT_SOURCE_DIR}/openspdm/build/lib/SpdmDumpLib.lib
+)
+
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}
+                    ${PROJECT_SOURCE_DIR}/openspdm/Tool/SpdmDump
+                    ${PROJECT_SOURCE_DIR}/openspdm/Include
+                    ${PROJECT_SOURCE_DIR}/openspdm/Include/Hal
+                    ${PROJECT_SOURCE_DIR}/openspdm/Include/Hal/X64
+                    ${PROJECT_SOURCE_DIR}/openspdm/OsStub/Include
+)
 
 register_plugin_files(plugin.c
 	plugin
@@ -32,7 +54,7 @@ register_plugin_files(plugin.c
 
 add_plugin_library(spdm epan)
 
-target_link_libraries(spdm epan)
+target_link_libraries(spdm epan ${OPENSPDM_LIBRARY})
 
 install_plugin(spdm epan)
 
