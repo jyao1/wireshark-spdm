@@ -17,7 +17,7 @@
    > cd %WIRESHARK_PATH%\openspdm
    > mkdir build
    > cd build
-   > cmake -G"NMake Makefiles" -DARCH=X64 -DTOOLCHAIN=VS2019 -DTARGET=Debug -DCRYPTO=<MbedTls|Openssl> -DTESTTYPE=OsTest ..
+   > cmake -G"NMake Makefiles" -DARCH=X64 -DTOOLCHAIN=VS2019 -DTARGET=Debug -DCRYPTO=<MbedTls|Openssl> -DTESTTYPE=WireShark ..
    
 4) Build Wireshark and plugin
    Refer to chapter 2.2.13 of https://www.wireshark.org/docs/wsdg_html_chunked/ChSetupWin32.html.

@@ -8,17 +8,48 @@
 #include <epan/packet.h>
 #include <epan/prefs.h>
 #include <epan/dissectors/packet-tcp.h>
-#include <openspdm/Tool/SpdmDump/SpdmDump.h>
+#include <openspdm/SpdmDump/SpdmDump.h>
 #include <openspdm/Include/IndustryStandard/Spdm.h>
+#include <openspdm/Include/Library/SpdmLibConfig.h>
+#include <openspdm/OsStub/Include/IndustryStandard/LinkTypeEx.h>
 
 #define SPDM_PORT 2323
 #define FRAME_HEADER_LEN 12
 
+extern PCAP_GLOBAL_HEADER mPcapGlobalHeader;
+
+extern UINT32             mSpdmRequesterCapabilitiesFlags;
+extern UINT32             mSpdmResponderCapabilitiesFlags;
+extern UINT8              mSpdmMeasurementSpec;
+extern UINT32             mSpdmMeasurementHashAlgo;
+extern UINT32             mSpdmBaseAsymAlgo;
+extern UINT32             mSpdmBaseHashAlgo;
+extern UINT16             mSpdmDHENamedGroup;
+extern UINT16             mSpdmAEADCipherSuite;
+extern UINT16             mSpdmReqBaseAsymAlg;
+extern UINT16             mSpdmKeySchedule;
+
+extern VALUE_STRING_ENTRY  mSpdmRequesterCapabilitiesStringTable[];
+extern UINTN               mSpdmRequesterCapabilitiesStringTableCount;
+extern VALUE_STRING_ENTRY  mSpdmResponderCapabilitiesStringTable[];
+extern UINTN               mSpdmResponderCapabilitiesStringTableCount;
+extern VALUE_STRING_ENTRY  mSpdmHashValueStringTable[];
+extern UINTN               mSpdmHashValueStringTableCount;
+extern VALUE_STRING_ENTRY  mSpdmMeasurementHashValueStringTable[];
+extern UINTN               mSpdmMeasurementHashValueStringTableCount;
+extern VALUE_STRING_ENTRY  mSpdmAsymValueStringTable[];
+extern UINTN               mSpdmAsymValueStringTableCount;
+extern VALUE_STRING_ENTRY  mSpdmDheValueStringTable[];
+extern UINTN               mSpdmDheValueStringTableCount;
+extern VALUE_STRING_ENTRY  mSpdmAeadValueStringTable[];
+extern UINTN               mSpdmAeadValueStringTableCount;
+extern VALUE_STRING_ENTRY  mSpdmKeyScheduleValueStringTable[];
+extern UINTN               mSpdmKeyScheduleValueStringTableCount;
+extern VALUE_STRING_ENTRY  mSpdmMeasurementSpecValueStringTable[];
+extern UINTN               mSpdmMeasurementSpecValueStringTableCount;
+
 guint RecordMeassageNum[1024];
 gint RecordMessageIndex = 0;
-
-char PskBuffer[] = "5465737450736b4461746100";
-char DheSecretBuffer[] = "c7ac17ee29b6a4f84e978223040b7eddff792477a6f7fc0f51faa553fee58175";
 
 guint8  ChallengeRequestParam2;
 guint8  MesurementsRequestParam1;
@@ -175,6 +206,119 @@ static const value_string packetTransportType[] = {
     { 0x01, "MCTP" },
     { 0x02, "PCI_DOE" },
 };
+
+static gboolean
+IsExist(char *FileName) {
+    FILE *fp = NULL;
+
+    if((fp = fopen(FileName, "r")) != NULL) {
+        fclose(fp);
+        return TRUE;
+    }
+    
+    return FALSE;
+}
+
+static void
+trim(char *strIn, char *strOut) {
+    char *start, *end, *temp;
+
+    temp = strIn;
+    while (*temp == ' ') {
+        ++temp;
+    }
+
+    start = temp;
+
+    temp = strIn + strlen(strIn) - 1;
+
+    while ((*temp == ' ') | (*temp == '\n')) {
+        --temp;
+    }
+
+    end = temp;
+
+    for (strIn = start; strIn <= end; ) {
+        *strOut++ = *strIn++;
+    }
+
+    *strOut = '\0';
+}
+
+static void 
+getValue(char *str, char *key, char *value) {
+    char *p;
+
+    p = strstr(str, key);
+    if(p == NULL) return;
+
+    p += strlen(key);
+
+    trim(p, value);
+
+    p = strstr(value, "=");
+    if(p == NULL) {
+        return;
+    }
+
+    p += strlen("=");
+
+    trim(p, value);
+
+    p = strstr(value, "=");
+    if(p != NULL) return;
+
+    p = value;
+    trim(p, value);
+}
+
+static void 
+readCFG(const char *filename, const char *key, const char**value) {
+    FILE *pf = NULL;
+
+    char line[1024] = {0}, temp[1024] = {0};
+
+    pf = fopen(filename, "r");
+    
+    while(!feof(pf)) {
+        fgets(line, 1024, pf);
+        getValue(line, key, temp);
+        if(strlen(temp) != 0) break;
+    }
+    
+    if (strlen(temp) != 0) {
+        *value = (char*)malloc(sizeof(char) * strlen(temp) + 1);
+        strcpy(*value, temp);
+    }
+    else
+        *value = NULL;
+    
+    if(pf != NULL) {
+        fclose(pf);
+    }
+}
+
+static void
+updateSecuredMessageData(guchar* cp) {
+    FILE *pf = NULL;
+    guchar *temp;
+    
+    if((pf = fopen("DecodeMsg.bin", "rb")) == NULL) {
+        return;
+    }
+
+    fseek(pf, 0, SEEK_END);
+    guint32 len = ftell(pf);
+
+    fseek(pf, 0, SEEK_SET);
+    
+    temp = (guchar *)malloc (len);
+    fread(temp, 1, len, pf);
+    memcpy(cp, temp, len);
+
+    fclose(pf);
+    free(temp);
+}
 
 static guint32 
 GetSignatureSize(guint32 BaseAsymAlgo) {
@@ -1220,10 +1364,18 @@ dissect_spdm_message(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree _U_
     transporttype = tvb_get_guint32(tvb, 4, ENC_BIG_ENDIAN);
     mesgsize = tvb_get_guint32(tvb, 8, ENC_BIG_ENDIAN);
 
+    if (transporttype == 0x1) {
+        mPcapGlobalHeader.Network = LINKTYPE_MCTP;
+    }
+    else if (transporttype == 0x2) {
+        mPcapGlobalHeader.Network = LINKTYPE_PCI_DOE;
+    }
+    
+
     proto_item_append_text(item, ", Command: %s", val_to_str(command, packetCommand, "Unknown (0x%08x)"));
     proto_item_append_text(item, ", TransportType: %s", val_to_str(transporttype, packetTransportType, "Unknown (0x%08x)"));
     proto_item_append_text(item, ", Size：0x%08x", mesgsize);
-    
+
     subtree = proto_item_add_subtree(item, spdm_ett.spdm);
 
     if (pinfo->destport == 2323) {
@@ -1247,6 +1399,7 @@ dissect_spdm_message(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree _U_
             RecordMeassageNum[RecordMessageIndex] = pinfo->num;
             RecordMessageIndex++;
             DumpMctpMessage(cp + 12, (guint32) length);
+            updateSecuredMessageData(cp + 23);
         }
 
         proto_tree_add_item(subtree, hf_spdm_MCTPMessageType, tvb, offset, 1, ENC_BIG_ENDIAN);
@@ -1512,6 +1665,10 @@ get_spdm_message_len(packet_info *pinfo _U_, tvbuff_t *tvb, int offset, void *da
 static int
 dissect_spdm(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data)
 {   
+    if (IsExist("DecodeMsg.bin")) {
+        remove("DecodeMsg.bin");
+    }
+    
     if (tree) {
         tcp_dissect_pdus(tvb, pinfo, tree, TRUE, FRAME_HEADER_LEN,
                      get_spdm_message_len, dissect_spdm_message, data);
@@ -2142,11 +2299,44 @@ proto_register_spdm(void)
 
 void
 proto_reg_handoff_spdm(void)
-{
+{   
+    UINT32  Data32;
+    char *ConfigFileName = "C:\\Development\\wireshark\\plugins\\epan\\spdm\\config.txt";
+    char *PskBuffer;
+    char *DheSecretBuffer;
+    char *RequesterCertChainPath;
+    char *ResponderCertChainPath;
+    char *SpdmRequesteCapabilities;
+    char *SpdmResponderCapabilities;
+    char *SpdmAlgorithmsHash;
+    char *SpdmAlgorithmsMeas_spec;
+    char *SpdmAlgorithmsMeas_hash;
+    char *SpdmAlgorithmsAsym;
+    char *SpdmAlgorithmsRequestAsym;
+    char *SpdmAlgorithmsDhe;
+    char *SpdmAlgorithmsAead;
+    char *SpdmAlgorithmsKeySchedule;
+
+    mPcapGlobalHeader.SnapLen = 65535;
     static dissector_handle_t spdm_handle;
 
     spdm_handle = create_dissector_handle(dissect_spdm, proto_spdm);
     dissector_add_uint("tcp.port", SPDM_PORT, spdm_handle);
+    
+    readCFG(ConfigFileName, "psk", &PskBuffer);
+    readCFG(ConfigFileName, "dhe_secret", &DheSecretBuffer);
+    readCFG(ConfigFileName, "req_cert_chain", &RequesterCertChainPath);
+    readCFG(ConfigFileName, "rsp_cert_chain", &ResponderCertChainPath);
+    readCFG(ConfigFileName, "req_cap", &SpdmRequesteCapabilities);
+    readCFG(ConfigFileName, "rsp_cap", &SpdmResponderCapabilities);
+    readCFG(ConfigFileName, "hash", &SpdmAlgorithmsHash);
+    readCFG(ConfigFileName, "meas_spec", &SpdmAlgorithmsMeas_spec);
+    readCFG(ConfigFileName, "meas_hash", &SpdmAlgorithmsMeas_hash);
+    readCFG(ConfigFileName, "asym", &SpdmAlgorithmsAsym);
+    readCFG(ConfigFileName, "req_asym", &SpdmAlgorithmsRequestAsym);
+    readCFG(ConfigFileName, "dhe_alg", &SpdmAlgorithmsDhe);
+    readCFG(ConfigFileName, "aead", &SpdmAlgorithmsAead);
+    readCFG(ConfigFileName, "key_schedule", &SpdmAlgorithmsKeySchedule);
 
     if (!HexStringToBuffer (PskBuffer, &mPskBuffer, &mPskBufferSize)) {
         exit (0);
@@ -2154,5 +2344,67 @@ proto_reg_handoff_spdm(void)
     if (!HexStringToBuffer (DheSecretBuffer, &mDheSecretBuffer, &mDheSecretBufferSize)) {
         exit (0);
     }
+
+    gboolean Res = ReadInputFile (RequesterCertChainPath, &mResponderCertChainBuffer, &mResponderCertChainBufferSize);
+    if (!Res) {
+        exit (0);
+    }
+    if (mRequesterCertChainBufferSize > MAX_SPDM_CERT_CHAIN_SIZE) {
+        exit (0);
+    }
+
+    Res = ReadInputFile (ResponderCertChainPath, &mResponderCertChainBuffer, &mResponderCertChainBufferSize);
+    if (!Res) {
+        exit (0);
+    }
+    if (mRequesterCertChainBufferSize > MAX_SPDM_CERT_CHAIN_SIZE) {
+        exit (0);
+    }
+
+    if (!GetFlagsFromName (mSpdmRequesterCapabilitiesStringTable, mSpdmRequesterCapabilitiesStringTableCount, SpdmRequesteCapabilities, &mSpdmRequesterCapabilitiesFlags)) {
+        exit (0);
+    }
+
+    if (!GetFlagsFromName (mSpdmResponderCapabilitiesStringTable, mSpdmResponderCapabilitiesStringTableCount, SpdmResponderCapabilities, &mSpdmResponderCapabilitiesFlags)) {
+        exit (0);
+    }
+
+    if (!GetValueFromName (mSpdmHashValueStringTable, mSpdmHashValueStringTableCount, SpdmAlgorithmsHash, &mSpdmBaseHashAlgo)) {
+        exit (0);
+    }
+
+    if (!GetValueFromName (mSpdmMeasurementSpecValueStringTable, mSpdmMeasurementSpecValueStringTableCount, SpdmAlgorithmsMeas_spec, &Data32)) {
+        exit (0);
+    }
+    mSpdmMeasurementSpec = (UINT8)Data32;
+
+    if (!GetValueFromName (mSpdmMeasurementHashValueStringTable, mSpdmMeasurementHashValueStringTableCount, SpdmAlgorithmsMeas_hash, &mSpdmMeasurementHashAlgo)) {
+        exit (0);
+    }
+
+    if (!GetValueFromName (mSpdmAsymValueStringTable, mSpdmAsymValueStringTableCount, SpdmAlgorithmsAsym, &mSpdmBaseAsymAlgo)) {
+        exit (0);
+    }
+
+    if (!GetValueFromName (mSpdmAsymValueStringTable, mSpdmAsymValueStringTableCount, SpdmAlgorithmsRequestAsym, &Data32)) {
+        exit (0);
+    }
+    mSpdmReqBaseAsymAlg = (UINT16)Data32;
+
+    if (!GetValueFromName (mSpdmDheValueStringTable, mSpdmDheValueStringTableCount, SpdmAlgorithmsDhe, &Data32)) {
+        exit (0);
+    }
+    mSpdmDHENamedGroup = (UINT16)Data32;
+
+    if (!GetValueFromName (mSpdmAeadValueStringTable, mSpdmAeadValueStringTableCount, SpdmAlgorithmsAead, &Data32)) {
+        exit (0);
+    }
+    mSpdmAEADCipherSuite = (UINT16)Data32;
+
+    if (!GetValueFromName (mSpdmKeyScheduleValueStringTable, mSpdmKeyScheduleValueStringTableCount, SpdmAlgorithmsKeySchedule, &Data32)) {
+        exit (0);
+    }
+    mSpdmKeySchedule = (UINT16)Data32;
+
     InitSpdmDump();
 }

@@ -1,0 +1,16 @@
+psk = 5465737450736b4461746100
+dhe_secret = c7ac17ee29b6a4f84e978223040b7eddff792477a6f7fc0f51faa553fee58175
+req_cert_chain = C:\Development\wireshark\openspdm\SpdmEmu\TestKey\Rsa3072\bundle_requester.certchain.der
+rsp_cert_chain = C:\Development\wireshark\openspdm\SpdmEmu\TestKey\EcP384\bundle_responder.certchain.der
+
+req_cap = CERT,CHAL,ENCRYPT,MAC,MUT_AUTH,KEY_EX,PSK,ENCAP,HBEAT,KEY_UPD,HANDSHAKE_IN_CLEAR
+rsp_cap = CACHE,CERT,CHAL,MEAS_SIG,MEAS_FRESH,ENCRYPT,MAC,MUT_AUTH,KEY_EX,PSK_WITH_CONTEXT,ENCAP,HBEAT,KEY_UPD,HANDSHAKE_IN_CLEAR
+
+hash = SHA_384
+meas_spec = DMTF
+meas_hash = SHA_512
+asym = ECDSA_P384 
+req_asym = RSAPSS_3072 
+dhe_alg = SECP_384_R1
+aead = AES_256_GCM 
+key_schedule = HMAC_HASH
