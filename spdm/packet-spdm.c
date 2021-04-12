@@ -810,14 +810,19 @@ dissect_mesurements_response_message(tvbuff_t *tvb, packet_info *pinfo _U_, prot
     if ((MesurementsRequestParam1 & 0x1) != 0) {
         proto_tree_add_item(subtree, hf_spdm_measurements_Nonce, tvb, offset, 32, ENC_LITTLE_ENDIAN);
         offset += 32;
-        OpaqueLength = tvb_get_guint16(tvb, offset, ENC_LITTLE_ENDIAN);
-        proto_tree_add_item(subtree, hf_spdm_measurements_OpaqueLength, tvb, offset, 2, ENC_LITTLE_ENDIAN);
-        offset += 2;
+    }
+
+    OpaqueLength = tvb_get_guint16(tvb, offset, ENC_LITTLE_ENDIAN);
+    proto_tree_add_item(subtree, hf_spdm_measurements_OpaqueLength, tvb, offset, 2, ENC_LITTLE_ENDIAN);
+    offset += 2;
+    if(OpaqueLength != 0) {
         proto_tree_add_item(subtree, hf_spdm_measurements_OpaqueData, tvb, offset, OpaqueLength, ENC_LITTLE_ENDIAN);
         offset += OpaqueLength;
+    }
+
+    if ((MesurementsRequestParam1 & 0x1) != 0) {
         proto_tree_add_item(subtree, hf_spdm_measurements_Signature, tvb, offset, SignatureSize, ENC_LITTLE_ENDIAN);
     }
-    
 }
 
 static void
@@ -1363,6 +1368,17 @@ dissect_spdm_message(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree _U_
     command = tvb_get_guint32(tvb, 0, ENC_BIG_ENDIAN);
     transporttype = tvb_get_guint32(tvb, 4, ENC_BIG_ENDIAN);
     mesgsize = tvb_get_guint32(tvb, 8, ENC_BIG_ENDIAN);
+
+    if (command == 0x00000001) {
+        if (check_message_duplicate_dissect(pinfo->num)) {
+            RecordMeassageNum[RecordMessageIndex] = pinfo->num;
+            RecordMessageIndex++;
+            DumpMctpMessage(cp + 12, (guint32) length);
+            if (updateSecuredMessageData(cp + 23) != 0) {
+                tvb_set_reported_length(tvb, updateSecuredMessageData(cp + 23) + 23);
+            }   
+        }
+    }
 
     if (transporttype == 0x1) {
         mPcapGlobalHeader.Network = LINKTYPE_MCTP;
